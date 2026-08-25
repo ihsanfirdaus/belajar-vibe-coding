@@ -87,4 +87,84 @@ describe("User Login & Registration API", () => {
       .where(eq(sessions.token, json.data));
     expect(savedSessions.length).toBe(1);
   });
+
+  describe("GET /api/users/current", () => {
+    it("should fail with 401 if Authorization header is missing", async () => {
+      const response = await app.handle(
+        new Request("http://localhost/api/users/current", {
+          method: "GET",
+        })
+      );
+
+      expect(response.status).toBe(401);
+      const json = await response.json();
+      expect(json).toEqual({ error: "Unauthorized" });
+    });
+
+    it("should fail with 401 if Authorization header is invalid format", async () => {
+      const response = await app.handle(
+        new Request("http://localhost/api/users/current", {
+          method: "GET",
+          headers: {
+            Authorization: "Basic 123456",
+          },
+        })
+      );
+
+      expect(response.status).toBe(401);
+      const json = await response.json();
+      expect(json).toEqual({ error: "Unauthorized" });
+    });
+
+    it("should fail with 401 if token is not found in database", async () => {
+      const response = await app.handle(
+        new Request("http://localhost/api/users/current", {
+          method: "GET",
+          headers: {
+            Authorization: "Bearer non-existent-token",
+          },
+        })
+      );
+
+      expect(response.status).toBe(401);
+      const json = await response.json();
+      expect(json).toEqual({ error: "Unauthorized" });
+    });
+
+    it("should succeed with 200 and return current user data when token is valid", async () => {
+      // 1. Login to obtain token
+      const loginRes = await app.handle(
+        new Request("http://localhost/api/users/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: testEmail,
+            password: testPassword,
+          }),
+        })
+      );
+      const { data: token } = (await loginRes.json()) as { data: string };
+
+      // 2. Call GET /api/users/current
+      const response = await app.handle(
+        new Request("http://localhost/api/users/current", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as {
+        data: { id: number; name: string; email: string; created_at: string };
+      };
+      expect(json.data).toBeDefined();
+      expect(json.data.name).toBe("Test User");
+      expect(json.data.email).toBe(testEmail);
+      expect(json.data.id).toBeDefined();
+      expect(json.data.created_at).toBeDefined();
+    });
+  });
 });
+
