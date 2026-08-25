@@ -27,6 +27,13 @@ export class UserLoginError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  constructor(message: string = "Unauthorized", public statusCode: number = 401) {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 export async function registerUser({ name, email, password }: RegisterUserInput) {
   // 1. Pengecekan Email
   const existingUser = await db
@@ -86,4 +93,44 @@ export async function loginUser({ email, password }: LoginUserInput) {
 
   return { token };
 }
+
+export async function getCurrentUser(token: string) {
+  if (!token) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  // 1. Cari Session di Database
+  const foundSessions = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.token, token))
+    .limit(1);
+
+  const [session] = foundSessions;
+
+  if (!session) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  // 2. Ambil data User yang berelasi
+  const foundUsers = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+
+  const [user] = foundUsers;
+
+  if (!user) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    created_at: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+  };
+}
+
 
