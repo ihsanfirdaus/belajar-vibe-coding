@@ -133,4 +133,29 @@ export async function getCurrentUser(token: string) {
   };
 }
 
+export async function logoutUser(token: string) {
+  if (!token) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  // 1. Cari Session di Database
+  const foundSessions = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.token, token))
+    .limit(1);
+
+  const [session] = foundSessions;
+
+  if (!session) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  // 2. Hapus Session dari Database
+  await db.delete(sessions).where(eq(sessions.token, token));
+
+  return "OK";
+}
+
+
 
