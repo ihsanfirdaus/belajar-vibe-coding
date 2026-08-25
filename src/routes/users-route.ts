@@ -2,11 +2,24 @@ import { Elysia, t } from "elysia";
 import {
   getCurrentUser,
   loginUser,
+  logoutUser,
   registerUser,
   UnauthorizedError,
   UserLoginError,
   UserRegistrationError,
 } from "../services/users-service";
+
+function extractBearerToken(headers: Record<string, string | undefined>): string | null {
+  const authHeader = headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authHeader.substring(7).trim();
+  if (!token) {
+    return null;
+  }
+  return token;
+}
 
 export const usersRoute = new Elysia({ prefix: "/api/users" })
   .post(
@@ -59,13 +72,7 @@ export const usersRoute = new Elysia({ prefix: "/api/users" })
     "/current",
     async ({ headers, set }) => {
       try {
-        const authHeader = headers["authorization"];
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-          set.status = 401;
-          return { error: "Unauthorized" };
-        }
-
-        const token = authHeader.substring(7).trim();
+        const token = extractBearerToken(headers);
         if (!token) {
           set.status = 401;
           return { error: "Unauthorized" };
@@ -82,6 +89,26 @@ export const usersRoute = new Elysia({ prefix: "/api/users" })
         return { error: error?.message || "Terjadi kesalahan internal pada server" };
       }
     }
+  )
+  .delete(
+    "/logout",
+    async ({ headers, set }) => {
+      try {
+        const token = extractBearerToken(headers);
+        if (!token) {
+          set.status = 401;
+          return { error: "Unauthorized" };
+        }
+
+        const result = await logoutUser(token);
+        return { data: result };
+      } catch (error: any) {
+        if (error instanceof UnauthorizedError) {
+          set.status = error.statusCode;
+          return { error: error.message };
+        }
+        set.status = 500;
+        return { error: error?.message || "Terjadi kesalahan internal pada server" };
+      }
+    }
   );
-
-

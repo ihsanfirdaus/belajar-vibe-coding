@@ -34,6 +34,26 @@ export class UnauthorizedError extends Error {
   }
 }
 
+async function findSessionByToken(token: string) {
+  if (!token) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  const foundSessions = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.token, token))
+    .limit(1);
+
+  const [session] = foundSessions;
+
+  if (!session) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  return session;
+}
+
 export async function registerUser({ name, email, password }: RegisterUserInput) {
   // 1. Pengecekan Email
   const existingUser = await db
@@ -95,24 +115,9 @@ export async function loginUser({ email, password }: LoginUserInput) {
 }
 
 export async function getCurrentUser(token: string) {
-  if (!token) {
-    throw new UnauthorizedError("Unauthorized", 401);
-  }
+  const session = await findSessionByToken(token);
 
-  // 1. Cari Session di Database
-  const foundSessions = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.token, token))
-    .limit(1);
-
-  const [session] = foundSessions;
-
-  if (!session) {
-    throw new UnauthorizedError("Unauthorized", 401);
-  }
-
-  // 2. Ambil data User yang berelasi
+  // Ambil data User yang berelasi
   const foundUsers = await db
     .select()
     .from(users)
@@ -133,4 +138,17 @@ export async function getCurrentUser(token: string) {
   };
 }
 
+export async function logoutUser(token: string) {
+  if (!token) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
 
+  // Langsung hapus session, cek affectedRows
+  const result = await db.delete(sessions).where(eq(sessions.token, token));
+
+  if (result[0].affectedRows === 0) {
+    throw new UnauthorizedError("Unauthorized", 401);
+  }
+
+  return "OK";
+}
